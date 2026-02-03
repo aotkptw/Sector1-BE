@@ -107,11 +107,17 @@ doc = api.get_documentation("car/assets")
 print(doc)
 ```
 
-To download all documentation pages with PowerShell, run (PowerShell 7+):
+To download all documentation pages with PowerShell, run (PowerShell 7+). If you omit
+`-AccessToken`, the script will use the same OAuth flow as the exporter (refresh token
+preferred, falling back to the password grant):
 
 ```powershell
 pwsh ./scripts/get-iracing-docs.ps1 -AccessToken $env:IRACING_ACCESS_TOKEN -OutputDir ./iracing-docs
 ```
+
+To use OAuth environment variables instead of passing an access token, export the same
+credentials as the exporter (at minimum: `IRACING_CLIENT_ID`, `IRACING_CLIENT_SECRET`,
+`IRACING_USERNAME`, and either `IRACING_REFRESH_TOKEN` or `IRACING_PASSWORD`).
 
 If `pwsh` is not available, use Windows PowerShell 5.1 instead (note the path format):
 
