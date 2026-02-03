@@ -21,6 +21,17 @@ class IRacingConfig:
 class IRacingAPI:
     """Client for iRacing data server endpoints."""
 
+    @staticmethod
+    def _extract_link(value: Any) -> Optional[str]:
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, dict):
+            for key in ("link", "href", "url"):
+                link_value = value.get(key)
+                if isinstance(link_value, str) and link_value:
+                    return link_value
+        return None
+
     def __init__(self, config: IRacingConfig) -> None:
         self._config = config
         self._session = self._config.session or requests.Session()
@@ -36,11 +47,21 @@ class IRacingAPI:
         response = self._session.get(url, params=params, timeout=30)
         response.raise_for_status()
         payload = response.json()
-        link = payload.get("link")
+        link = self._extract_link(payload)
         if not link:
             data_payload = payload.get("data")
             if isinstance(data_payload, dict):
-                nested_link = data_payload.get("link")
+                nested_link = self._extract_link(data_payload)
+                if not nested_link:
+                    nested_data = data_payload.get("data")
+                    if isinstance(nested_data, dict):
+                        nested_link = self._extract_link(nested_data)
+                    elif isinstance(nested_data, list):
+                        LOGGER.debug(
+                            "Response from %s included nested data list; returning under 'data' key.",
+                            endpoint,
+                        )
+                        return {"data": nested_data}
                 if nested_link:
                     LOGGER.debug(
                         "Response from %s included a data link inside payload data; fetching.",
@@ -59,9 +80,13 @@ class IRacingAPI:
                 results_response.raise_for_status()
                 return results_response.json()
             if data_payload in (None, [], ""):
+                detail = payload.get("message") or payload.get("error") or payload.get(
+                    "error_description"
+                )
                 LOGGER.warning(
-                    "Response from %s did not include a data link or inline data; returning empty payload.",
+                    "Response from %s did not include a data link or inline data%s; returning empty payload.",
                     endpoint,
+                    f" ({detail})" if detail else "",
                 )
                 return {}
             if isinstance(data_payload, list):
