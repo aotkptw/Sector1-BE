@@ -152,6 +152,14 @@ class IRacingAPI:
             {"league_id": league_id, "season_id": season_id},
         )
 
+    def get_documentation(self, doc_path: str = "") -> Dict[str, Any]:
+        """Fetch API documentation for the provided doc path."""
+        normalized = doc_path.strip("/")
+        endpoint = "/data/doc"
+        if normalized:
+            endpoint = f"{endpoint}/{normalized}"
+        return self._fetch_data(endpoint, {})
+
 
 def build_base_url() -> str:
     return "https://members-ng.iracing.com"
