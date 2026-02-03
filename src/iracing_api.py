@@ -41,7 +41,10 @@ class IRacingAPI:
         if not link:
             raise ValueError("Results response did not include a data link.")
         LOGGER.debug("Fetching results payload from %s", link)
-        results_response = self._session.get(link, timeout=30)
+        results_session = requests.Session()
+        results_session.cookies.update(self._session.cookies)
+        results_session.headers.update({"Accept": "application/json"})
+        results_response = results_session.get(link, timeout=30)
         results_response.raise_for_status()
         return results_response.json()
 
