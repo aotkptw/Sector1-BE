@@ -107,6 +107,12 @@ doc = api.get_documentation("car/assets")
 print(doc)
 ```
 
+To download all documentation pages with PowerShell, run:
+
+```powershell
+pwsh ./scripts/get-iracing-docs.ps1 -AccessToken $env:IRACING_ACCESS_TOKEN -OutputDir ./iracing-docs
+```
+
 ## Notes
 
 * The OAuth password-limited client scope is restricted to `julian.m.colbert@gmail.com`.
