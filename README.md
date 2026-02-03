@@ -69,6 +69,12 @@ Additional options:
 python src/iracing_exporter.py --session-id 123456 --output results.csv --format csv --verbose
 ```
 
+To render session results as a PNG, add `--results-image`:
+
+```bash
+python src/iracing_exporter.py --session-id 123456 --output results.csv --results-image results.png
+```
+
 To validate the CLI without contacting iRacing:
 
 ```bash

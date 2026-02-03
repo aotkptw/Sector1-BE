@@ -160,6 +160,10 @@ def parse_args() -> argparse.Namespace:
         "--team-standings-image",
         help="Optional PNG output path for team standings.",
     )
+    parser.add_argument(
+        "--results-image",
+        help="Optional PNG output path for session results.",
+    )
     parser.add_argument("--format", default="csv", choices=["csv"], help="Export format.")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
     parser.add_argument("--dry-run", action="store_true", help="Validate arguments without API calls.")
@@ -308,6 +312,13 @@ def main() -> int:
         else:
             results_payload = api.get_session_results(args.session_id)
             rows = normalize_results(results_payload)
+            if args.results_image:
+                render_standings_png(
+                    rows,
+                    args.results_image,
+                    f"Race Results ({args.session_id})",
+                    ("driver_name", "display_name", "name"),
+                )
             if not rows:
                 LOGGER.warning("No results found for session %s", args.session_id)
             columns = None
