@@ -70,6 +70,43 @@ If you see a `SyntaxError` that references a line starting with `index` (for exa
 the project archive or open the file and remove the stray diff header lines before
 running the exporter.
 
+## iRacing API Documentation
+
+The iRacing API exposes documentation via `/data/doc`. Provide your OAuth access token
+as a Bearer token to retrieve the root documentation or a specific service/method.
+
+```bash
+curl --fail \
+  -H "Authorization: Bearer ${IRACING_ACCESS_TOKEN}" \
+  "https://members-ng.iracing.com/data/doc"
+```
+
+To fetch a service page (for example, `car`) or a specific method (for example,
+`car/assets`), append the path:
+
+```bash
+curl --fail \
+  -H "Authorization: Bearer ${IRACING_ACCESS_TOKEN}" \
+  "https://members-ng.iracing.com/data/doc/car"
+```
+
+```bash
+curl --fail \
+  -H "Authorization: Bearer ${IRACING_ACCESS_TOKEN}" \
+  "https://members-ng.iracing.com/data/doc/car/assets"
+```
+
+If you want to use the Python client helpers, build an API instance with your access
+token and call `get_documentation`:
+
+```python
+from iracing_api import build_api
+
+api = build_api("your-access-token")
+doc = api.get_documentation("car/assets")
+print(doc)
+```
+
 ## Notes
 
 * The OAuth password-limited client scope is restricted to `julian.m.colbert@gmail.com`.
