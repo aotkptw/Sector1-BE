@@ -38,6 +38,16 @@ class IRacingAPI:
         payload = response.json()
         link = payload.get("link")
         if not link:
+            data_payload = payload.get("data")
+            if isinstance(data_payload, dict):
+                LOGGER.debug("Response from %s included data inline; skipping link fetch.", endpoint)
+                return data_payload
+            if any(key in payload for key in ("standings", "team_standings", "points", "point_system")):
+                LOGGER.debug(
+                    "Response from %s included expected data keys inline; skipping link fetch.",
+                    endpoint,
+                )
+                return payload
             raise ValueError(f"Response from {endpoint} did not include a data link.")
         LOGGER.debug("Fetching payload from %s", link)
         results_session = requests.Session()
