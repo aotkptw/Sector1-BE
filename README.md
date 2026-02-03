@@ -35,6 +35,13 @@ Available league datasets:
 * `nation-standings`
 * `points`
 * `calendar` (race calendar with top-three positions)
+* `all` (all league datasets in one CSV)
+
+To export all league datasets into one CSV:
+
+```bash
+python src/iracing_exporter.py --league-id 98765 --season-id 2024 --league-data all --output league_all.csv
+```
 
 Additional options:
 
