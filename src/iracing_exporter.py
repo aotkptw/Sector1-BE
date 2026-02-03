@@ -24,6 +24,7 @@ from csv_export import (
     normalize_results,
     write_csv,
 )
+from standings_image import render_standings_png
 
 LOGGER = logging.getLogger(__name__)
 
@@ -151,6 +152,14 @@ def parse_args() -> argparse.Namespace:
         help="League dataset to export.",
     )
     parser.add_argument("--output", required=True, help="Output CSV path.")
+    parser.add_argument(
+        "--driver-standings-image",
+        help="Optional PNG output path for driver standings.",
+    )
+    parser.add_argument(
+        "--team-standings-image",
+        help="Optional PNG output path for team standings.",
+    )
     parser.add_argument("--format", default="csv", choices=["csv"], help="Export format.")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
     parser.add_argument("--dry-run", action="store_true", help="Validate arguments without API calls.")
@@ -195,6 +204,13 @@ def main() -> int:
                 rows = []
                 team_payload = api.get_league_season_team_standings(args.league_id, season_id)
                 team_rows = team_payload.get("team_standings") or team_payload.get("standings") or []
+                if args.team_standings_image:
+                    render_standings_png(
+                        team_rows,
+                        args.team_standings_image,
+                        "Team Standings",
+                        ("team_name", "team", "display_name", "name"),
+                    )
                 rows.extend(normalize_league_team_standings(team_rows))
 
                 standings_payload = api.get_league_season_standings(args.league_id, season_id)
@@ -203,6 +219,13 @@ def main() -> int:
                     or standings_payload.get("driver_standings")
                     or []
                 )
+                if args.driver_standings_image:
+                    render_standings_png(
+                        standings_rows,
+                        args.driver_standings_image,
+                        "Driver Standings",
+                        ("display_name", "driver_name", "name"),
+                    )
                 rows.extend(normalize_league_standings(standings_rows, "driver-standings", "overall"))
 
                 rows.extend(normalize_league_standings(standings_rows, "pro-standings", "pro"))
@@ -227,6 +250,13 @@ def main() -> int:
             elif dataset == "team-standings":
                 league_payload = api.get_league_season_team_standings(args.league_id, season_id)
                 rows = league_payload.get("team_standings") or league_payload.get("standings") or []
+                if args.team_standings_image:
+                    render_standings_png(
+                        rows,
+                        args.team_standings_image,
+                        "Team Standings",
+                        ("team_name", "team", "display_name", "name"),
+                    )
                 if not rows:
                     LOGGER.warning(
                         "No league data found for %s/%s (%s).",
@@ -260,6 +290,13 @@ def main() -> int:
             else:
                 league_payload = api.get_league_season_standings(args.league_id, season_id)
                 rows = league_payload.get("standings") or league_payload.get("driver_standings") or []
+                if args.driver_standings_image:
+                    render_standings_png(
+                        rows,
+                        args.driver_standings_image,
+                        "Driver Standings",
+                        ("display_name", "driver_name", "name"),
+                    )
                 if not rows:
                     LOGGER.warning(
                         "No league data found for %s/%s (%s).",
