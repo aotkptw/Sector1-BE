@@ -97,32 +97,50 @@ def write_csv(rows: Iterable[Dict[str, Any]], output_path: str, columns: List[st
     return path
 
 
+def _coerce_mapping(entry: Any) -> Dict[str, Any]:
+    if isinstance(entry, dict):
+        return entry
+    return {"value": entry}
+
+
 def normalize_league_calendar(calendar_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
-    races = (
-        calendar_payload.get("races")
-        or calendar_payload.get("race_schedule")
-        or calendar_payload.get("sessions")
-        or []
-    )
+    if isinstance(calendar_payload, list):
+        races = calendar_payload
+    else:
+        races = (
+            calendar_payload.get("races")
+            or calendar_payload.get("race_schedule")
+            or calendar_payload.get("sessions")
+            or calendar_payload.get("data")
+            or []
+        )
     if not races:
         return []
 
     normalized: List[Dict[str, Any]] = []
     for entry in races:
-        podium = entry.get("podium") or entry.get("top_three") or []
+        entry_data = _coerce_mapping(entry)
+        podium = entry_data.get("podium") or entry_data.get("top_three") or []
+
         def podium_name(index: int) -> Any:
             if len(podium) > index:
-                return podium[index].get("display_name") or podium[index].get("driver_name")
+                podium_entry = _coerce_mapping(podium[index])
+                return (
+                    podium_entry.get("display_name")
+                    or podium_entry.get("driver_name")
+                    or podium_entry.get("name")
+                    or podium_entry.get("value")
+                )
             return None
 
         normalized.append(
             {
-                "race_number": entry.get("race_number")
-                if entry.get("race_number") is not None
-                else entry.get("round"),
-                "race_name": entry.get("race_name") or entry.get("event_name"),
-                "track": entry.get("track_name") or entry.get("track"),
-                "start_time": entry.get("start_time") or entry.get("start_date"),
+                "race_number": entry_data.get("race_number")
+                if entry_data.get("race_number") is not None
+                else entry_data.get("round"),
+                "race_name": entry_data.get("race_name") or entry_data.get("event_name"),
+                "track": entry_data.get("track_name") or entry_data.get("track"),
+                "start_time": entry_data.get("start_time") or entry_data.get("start_date"),
                 "winner": podium_name(0),
                 "second_place": podium_name(1),
                 "third_place": podium_name(2),
@@ -137,24 +155,26 @@ def normalize_league_standings(
 ) -> List[Dict[str, Any]]:
     normalized: List[Dict[str, Any]] = []
     for entry in rows:
+        entry_data = _coerce_mapping(entry)
         normalized.append(
             {
                 "dataset": dataset,
                 "category": category,
-                "position": entry.get("position")
-                if entry.get("position") is not None
-                else entry.get("rank")
-                if entry.get("rank") is not None
-                else entry.get("pos"),
-                "driver_name": entry.get("display_name")
-                or entry.get("driver_name")
-                or entry.get("name"),
-                "team_name": entry.get("team_name") or entry.get("team"),
-                "club_name": entry.get("club_name") or entry.get("club"),
-                "country": entry.get("country") or entry.get("country_code"),
-                "points": entry.get("points")
-                if entry.get("points") is not None
-                else entry.get("championship_points"),
+                "position": entry_data.get("position")
+                if entry_data.get("position") is not None
+                else entry_data.get("rank")
+                if entry_data.get("rank") is not None
+                else entry_data.get("pos"),
+                "driver_name": entry_data.get("display_name")
+                or entry_data.get("driver_name")
+                or entry_data.get("name")
+                or entry_data.get("value"),
+                "team_name": entry_data.get("team_name") or entry_data.get("team"),
+                "club_name": entry_data.get("club_name") or entry_data.get("club"),
+                "country": entry_data.get("country") or entry_data.get("country_code"),
+                "points": entry_data.get("points")
+                if entry_data.get("points") is not None
+                else entry_data.get("championship_points"),
                 "race_number": None,
                 "race_name": None,
                 "track": None,
@@ -162,7 +182,7 @@ def normalize_league_standings(
                 "winner": None,
                 "second_place": None,
                 "third_place": None,
-                "details": json.dumps(entry, default=str),
+                "details": json.dumps(entry_data, default=str),
             }
         )
     return normalized
@@ -171,24 +191,26 @@ def normalize_league_standings(
 def normalize_league_team_standings(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     normalized: List[Dict[str, Any]] = []
     for entry in rows:
+        entry_data = _coerce_mapping(entry)
         normalized.append(
             {
                 "dataset": "team-standings",
                 "category": "team",
-                "position": entry.get("position")
-                if entry.get("position") is not None
-                else entry.get("rank")
-                if entry.get("rank") is not None
-                else entry.get("pos"),
-                "driver_name": entry.get("display_name")
-                or entry.get("driver_name")
-                or entry.get("name"),
-                "team_name": entry.get("team_name") or entry.get("team"),
-                "club_name": entry.get("club_name") or entry.get("club"),
-                "country": entry.get("country") or entry.get("country_code"),
-                "points": entry.get("points")
-                if entry.get("points") is not None
-                else entry.get("championship_points"),
+                "position": entry_data.get("position")
+                if entry_data.get("position") is not None
+                else entry_data.get("rank")
+                if entry_data.get("rank") is not None
+                else entry_data.get("pos"),
+                "driver_name": entry_data.get("display_name")
+                or entry_data.get("driver_name")
+                or entry_data.get("name")
+                or entry_data.get("value"),
+                "team_name": entry_data.get("team_name") or entry_data.get("team"),
+                "club_name": entry_data.get("club_name") or entry_data.get("club"),
+                "country": entry_data.get("country") or entry_data.get("country_code"),
+                "points": entry_data.get("points")
+                if entry_data.get("points") is not None
+                else entry_data.get("championship_points"),
                 "race_number": None,
                 "race_name": None,
                 "track": None,
@@ -196,30 +218,41 @@ def normalize_league_team_standings(rows: List[Dict[str, Any]]) -> List[Dict[str
                 "winner": None,
                 "second_place": None,
                 "third_place": None,
-                "details": json.dumps(entry, default=str),
+                "details": json.dumps(entry_data, default=str),
             }
         )
     return normalized
 
 
 def normalize_league_points(points_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
-    points_rows = points_payload.get("points") or points_payload.get("point_system") or []
+    if isinstance(points_payload, list):
+        points_rows = points_payload
+    else:
+        points_rows = (
+            points_payload.get("points")
+            or points_payload.get("point_system")
+            or points_payload.get("data")
+            or []
+        )
     normalized: List[Dict[str, Any]] = []
     for entry in points_rows:
+        entry_data = _coerce_mapping(entry)
         normalized.append(
             {
                 "dataset": "points",
                 "category": "point-system",
-                "position": entry.get("position")
-                if entry.get("position") is not None
-                else entry.get("place")
-                if entry.get("place") is not None
-                else entry.get("rank"),
+                "position": entry_data.get("position")
+                if entry_data.get("position") is not None
+                else entry_data.get("place")
+                if entry_data.get("place") is not None
+                else entry_data.get("rank"),
                 "driver_name": None,
                 "team_name": None,
                 "club_name": None,
                 "country": None,
-                "points": entry.get("points") if entry.get("points") is not None else entry.get("value"),
+                "points": entry_data.get("points")
+                if entry_data.get("points") is not None
+                else entry_data.get("value"),
                 "race_number": None,
                 "race_name": None,
                 "track": None,
@@ -227,7 +260,7 @@ def normalize_league_points(points_payload: Dict[str, Any]) -> List[Dict[str, An
                 "winner": None,
                 "second_place": None,
                 "third_place": None,
-                "details": json.dumps(entry, default=str),
+                "details": json.dumps(entry_data, default=str),
             }
         )
     return normalized
