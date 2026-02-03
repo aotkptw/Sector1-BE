@@ -13,7 +13,17 @@ from typing import Dict, Optional
 import requests
 
 from iracing_api import build_api, build_api_with_session
-from csv_export import DEFAULT_CALENDAR_COLUMNS, normalize_league_calendar, normalize_results, write_csv
+from csv_export import (
+    DEFAULT_CALENDAR_COLUMNS,
+    DEFAULT_LEAGUE_ALL_COLUMNS,
+    normalize_league_calendar,
+    normalize_league_calendar_all,
+    normalize_league_points,
+    normalize_league_standings,
+    normalize_league_team_standings,
+    normalize_results,
+    write_csv,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -136,6 +146,7 @@ def parse_args() -> argparse.Namespace:
             "nation-standings",
             "points",
             "calendar",
+            "all",
         ],
         help="League dataset to export.",
     )
@@ -180,15 +191,92 @@ def main() -> int:
         if args.league_id:
             dataset = args.league_data or "driver-standings"
             season_id = args.season_id
-            if dataset == "team-standings":
+            if dataset == "all":
+                rows = []
+                team_payload = api.get_league_season_team_standings(args.league_id, season_id)
+                team_rows = team_payload.get("team_standings") or team_payload.get("standings") or []
+                rows.extend(normalize_league_team_standings(team_rows))
+
+                standings_payload = api.get_league_season_standings(
+                    args.league_id, season_id, standings_type="overall"
+                )
+                standings_rows = (
+                    standings_payload.get("standings")
+                    or standings_payload.get("driver_standings")
+                    or []
+                )
+                rows.extend(normalize_league_standings(standings_rows, "driver-standings", "overall"))
+
+                pro_payload = api.get_league_season_standings(
+                    args.league_id, season_id, standings_type="pro"
+                )
+                pro_rows = pro_payload.get("standings") or pro_payload.get("driver_standings") or []
+                rows.extend(normalize_league_standings(pro_rows, "pro-standings", "pro"))
+
+                am_payload = api.get_league_season_standings(
+                    args.league_id, season_id, standings_type="am"
+                )
+                am_rows = am_payload.get("standings") or am_payload.get("driver_standings") or []
+                rows.extend(normalize_league_standings(am_rows, "am-standings", "am"))
+
+                nation_payload = api.get_league_season_standings(
+                    args.league_id, season_id, standings_type="nation"
+                )
+                nation_rows = (
+                    nation_payload.get("standings")
+                    or nation_payload.get("driver_standings")
+                    or []
+                )
+                rows.extend(
+                    normalize_league_standings(nation_rows, "nation-standings", "nation")
+                )
+
+                points_payload = api.get_league_season_points(args.league_id, season_id)
+                rows.extend(normalize_league_points(points_payload))
+
+                calendar_payload = api.get_league_season_race_schedule(args.league_id, season_id)
+                rows.extend(normalize_league_calendar_all(calendar_payload))
+
+                if not rows:
+                    LOGGER.warning(
+                        "No league data found for %s/%s (all datasets).",
+                        args.league_id,
+                        season_id,
+                    )
+                columns = DEFAULT_LEAGUE_ALL_COLUMNS
+            elif dataset == "team-standings":
                 league_payload = api.get_league_season_team_standings(args.league_id, season_id)
                 rows = league_payload.get("team_standings") or league_payload.get("standings") or []
+                if not rows:
+                    LOGGER.warning(
+                        "No league data found for %s/%s (%s).",
+                        args.league_id,
+                        season_id,
+                        dataset,
+                    )
+                columns = None
             elif dataset == "points":
                 league_payload = api.get_league_season_points(args.league_id, season_id)
                 rows = league_payload.get("points") or league_payload.get("point_system") or []
+                if not rows:
+                    LOGGER.warning(
+                        "No league data found for %s/%s (%s).",
+                        args.league_id,
+                        season_id,
+                        dataset,
+                    )
+                columns = None
             elif dataset == "calendar":
                 league_payload = api.get_league_season_race_schedule(args.league_id, season_id)
                 rows = normalize_league_calendar(league_payload)
+                if not rows:
+                    LOGGER.warning(
+                        "No league data found for %s/%s (%s).",
+                        args.league_id,
+                        season_id,
+                        dataset,
+                    )
+                columns = DEFAULT_CALENDAR_COLUMNS
             else:
                 standings_type = {
                     "driver-standings": "overall",
@@ -200,9 +288,14 @@ def main() -> int:
                     args.league_id, season_id, standings_type=standings_type
                 )
                 rows = league_payload.get("standings") or league_payload.get("driver_standings") or []
-            if not rows:
-                LOGGER.warning("No league data found for %s/%s (%s).", args.league_id, season_id, dataset)
-            columns = DEFAULT_CALENDAR_COLUMNS if dataset == "calendar" else None
+                if not rows:
+                    LOGGER.warning(
+                        "No league data found for %s/%s (%s).",
+                        args.league_id,
+                        season_id,
+                        dataset,
+                    )
+                columns = None
         else:
             results_payload = api.get_session_results(args.session_id)
             rows = normalize_results(results_payload)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
@@ -25,6 +26,25 @@ DEFAULT_CALENDAR_COLUMNS = [
     "winner",
     "second_place",
     "third_place",
+]
+
+DEFAULT_LEAGUE_ALL_COLUMNS = [
+    "dataset",
+    "category",
+    "position",
+    "driver_name",
+    "team_name",
+    "club_name",
+    "country",
+    "points",
+    "race_number",
+    "race_name",
+    "track",
+    "start_time",
+    "winner",
+    "second_place",
+    "third_place",
+    "details",
 ]
 
 
@@ -104,4 +124,132 @@ def normalize_league_calendar(calendar_payload: Dict[str, Any]) -> List[Dict[str
             }
         )
 
+    return normalized
+
+
+def normalize_league_standings(
+    rows: List[Dict[str, Any]], dataset: str, category: str
+) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for entry in rows:
+        normalized.append(
+            {
+                "dataset": dataset,
+                "category": category,
+                "position": entry.get("position")
+                if entry.get("position") is not None
+                else entry.get("rank")
+                if entry.get("rank") is not None
+                else entry.get("pos"),
+                "driver_name": entry.get("display_name")
+                or entry.get("driver_name")
+                or entry.get("name"),
+                "team_name": entry.get("team_name") or entry.get("team"),
+                "club_name": entry.get("club_name") or entry.get("club"),
+                "country": entry.get("country") or entry.get("country_code"),
+                "points": entry.get("points")
+                if entry.get("points") is not None
+                else entry.get("championship_points"),
+                "race_number": None,
+                "race_name": None,
+                "track": None,
+                "start_time": None,
+                "winner": None,
+                "second_place": None,
+                "third_place": None,
+                "details": json.dumps(entry, default=str),
+            }
+        )
+    return normalized
+
+
+def normalize_league_team_standings(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for entry in rows:
+        normalized.append(
+            {
+                "dataset": "team-standings",
+                "category": "team",
+                "position": entry.get("position")
+                if entry.get("position") is not None
+                else entry.get("rank")
+                if entry.get("rank") is not None
+                else entry.get("pos"),
+                "driver_name": entry.get("display_name")
+                or entry.get("driver_name")
+                or entry.get("name"),
+                "team_name": entry.get("team_name") or entry.get("team"),
+                "club_name": entry.get("club_name") or entry.get("club"),
+                "country": entry.get("country") or entry.get("country_code"),
+                "points": entry.get("points")
+                if entry.get("points") is not None
+                else entry.get("championship_points"),
+                "race_number": None,
+                "race_name": None,
+                "track": None,
+                "start_time": None,
+                "winner": None,
+                "second_place": None,
+                "third_place": None,
+                "details": json.dumps(entry, default=str),
+            }
+        )
+    return normalized
+
+
+def normalize_league_points(points_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    points_rows = points_payload.get("points") or points_payload.get("point_system") or []
+    normalized: List[Dict[str, Any]] = []
+    for entry in points_rows:
+        normalized.append(
+            {
+                "dataset": "points",
+                "category": "point-system",
+                "position": entry.get("position")
+                if entry.get("position") is not None
+                else entry.get("place")
+                if entry.get("place") is not None
+                else entry.get("rank"),
+                "driver_name": None,
+                "team_name": None,
+                "club_name": None,
+                "country": None,
+                "points": entry.get("points") if entry.get("points") is not None else entry.get("value"),
+                "race_number": None,
+                "race_name": None,
+                "track": None,
+                "start_time": None,
+                "winner": None,
+                "second_place": None,
+                "third_place": None,
+                "details": json.dumps(entry, default=str),
+            }
+        )
+    return normalized
+
+
+def normalize_league_calendar_all(calendar_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    races = normalize_league_calendar(calendar_payload)
+    normalized: List[Dict[str, Any]] = []
+    for entry in races:
+        normalized.append(
+            {
+                "dataset": "calendar",
+                "category": "race",
+                "position": None,
+                "driver_name": None,
+                "team_name": None,
+                "club_name": None,
+                "country": None,
+                "points": None,
+                "race_number": entry.get("race_number"),
+                "race_name": entry.get("race_name"),
+                "track": entry.get("track"),
+                "start_time": entry.get("start_time"),
+                "winner": entry.get("winner"),
+                "second_place": entry.get("second_place"),
+                "third_place": entry.get("third_place"),
+                "details": json.dumps(entry, default=str),
+            }
+        )
     return normalized
