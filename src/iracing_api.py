@@ -40,8 +40,24 @@ class IRacingAPI:
         if not link:
             data_payload = payload.get("data")
             if isinstance(data_payload, dict):
-                LOGGER.debug("Response from %s included data inline; skipping link fetch.", endpoint)
-                return data_payload
+                nested_link = data_payload.get("link")
+                if nested_link:
+                    LOGGER.debug(
+                        "Response from %s included a data link inside payload data; fetching.",
+                        endpoint,
+                    )
+                    link = nested_link
+                else:
+                    LOGGER.debug("Response from %s included data inline; skipping link fetch.", endpoint)
+                    return data_payload
+            if link:
+                LOGGER.debug("Fetching payload from %s", link)
+                results_session = requests.Session()
+                results_session.cookies.update(self._session.cookies)
+                results_session.headers.update({"Accept": "application/json"})
+                results_response = results_session.get(link, timeout=30)
+                results_response.raise_for_status()
+                return results_response.json()
             if data_payload in (None, [], ""):
                 LOGGER.warning(
                     "Response from %s did not include a data link or inline data; returning empty payload.",
