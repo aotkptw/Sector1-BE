@@ -13,7 +13,7 @@ from typing import Dict, Optional
 import requests
 
 from iracing_api import build_api, build_api_with_session
-from csv_export import normalize_results, write_csv
+from csv_export import DEFAULT_CALENDAR_COLUMNS, normalize_league_calendar, normalize_results, write_csv
 
 LOGGER = logging.getLogger(__name__)
 
@@ -121,8 +121,24 @@ def authenticate_legacy(credentials: Dict[str, str]) -> requests.Session:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Export iRacing session results to CSV.")
-    parser.add_argument("--session-id", required=True, help="Subsession/session identifier.")
+    parser = argparse.ArgumentParser(description="Export iRacing session or league data to CSV.")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--session-id", help="Subsession/session identifier.")
+    group.add_argument("--league-id", help="League identifier.")
+    parser.add_argument("--season-id", help="League season identifier (required with --league-id).")
+    parser.add_argument(
+        "--league-data",
+        choices=[
+            "team-standings",
+            "driver-standings",
+            "pro-standings",
+            "am-standings",
+            "nation-standings",
+            "points",
+            "calendar",
+        ],
+        help="League dataset to export.",
+    )
     parser.add_argument("--output", required=True, help="Output CSV path.")
     parser.add_argument("--format", default="csv", choices=["csv"], help="Export format.")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
@@ -143,6 +159,8 @@ def main() -> int:
         if args.dry_run:
             LOGGER.info("Dry run enabled; skipping OAuth and API calls.")
             return 0
+        if args.league_id and not args.season_id:
+            raise RuntimeError("--season-id is required when --league-id is provided.")
         credentials = load_env_credentials()
         try:
             if credentials.get("IRACING_REFRESH_TOKEN"):
@@ -159,13 +177,41 @@ def main() -> int:
             )
             session = authenticate_legacy(credentials)
             api = build_api_with_session(session)
-        results_payload = api.get_session_results(args.session_id)
-        rows = normalize_results(results_payload)
-        if not rows:
-            LOGGER.warning("No results found for session %s", args.session_id)
+        if args.league_id:
+            dataset = args.league_data or "driver-standings"
+            season_id = args.season_id
+            if dataset == "team-standings":
+                league_payload = api.get_league_season_team_standings(args.league_id, season_id)
+                rows = league_payload.get("team_standings") or league_payload.get("standings") or []
+            elif dataset == "points":
+                league_payload = api.get_league_season_points(args.league_id, season_id)
+                rows = league_payload.get("points") or league_payload.get("point_system") or []
+            elif dataset == "calendar":
+                league_payload = api.get_league_season_race_schedule(args.league_id, season_id)
+                rows = normalize_league_calendar(league_payload)
+            else:
+                standings_type = {
+                    "driver-standings": "overall",
+                    "pro-standings": "pro",
+                    "am-standings": "am",
+                    "nation-standings": "nation",
+                }.get(dataset)
+                league_payload = api.get_league_season_standings(
+                    args.league_id, season_id, standings_type=standings_type
+                )
+                rows = league_payload.get("standings") or league_payload.get("driver_standings") or []
+            if not rows:
+                LOGGER.warning("No league data found for %s/%s (%s).", args.league_id, season_id, dataset)
+            columns = DEFAULT_CALENDAR_COLUMNS if dataset == "calendar" else None
+        else:
+            results_payload = api.get_session_results(args.session_id)
+            rows = normalize_results(results_payload)
+            if not rows:
+                LOGGER.warning("No results found for session %s", args.session_id)
+            columns = None
         if args.format != "csv":
             raise RuntimeError(f"Unsupported format: {args.format}")
-        output_path = write_csv(rows, args.output)
+        output_path = write_csv(rows, args.output, columns=columns)
         LOGGER.info("Wrote %s rows to %s", len(rows), output_path)
         return 0
     except Exception as exc:  # pylint: disable=broad-except

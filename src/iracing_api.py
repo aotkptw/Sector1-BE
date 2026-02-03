@@ -30,23 +30,68 @@ class IRacingAPI:
         elif not self._config.session:
             raise ValueError("IRacingAPI requires an access token or an authenticated session.")
 
-    def get_session_results(self, session_id: str) -> Dict[str, Any]:
-        """Fetch session results for the provided subsession/session id."""
-        endpoint = f"{self._config.base_url}/data/results/get"
-        LOGGER.debug("Requesting session results from %s", endpoint)
-        response = self._session.get(endpoint, params={"subsession_id": session_id}, timeout=30)
+    def _fetch_data(self, endpoint: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        url = f"{self._config.base_url}{endpoint}"
+        LOGGER.debug("Requesting data from %s", url)
+        response = self._session.get(url, params=params, timeout=30)
         response.raise_for_status()
         payload = response.json()
         link = payload.get("link")
         if not link:
-            raise ValueError("Results response did not include a data link.")
-        LOGGER.debug("Fetching results payload from %s", link)
+            LOGGER.debug("No data link returned from %s; using inline payload.", endpoint)
+            data = payload.get("data")
+            if data is not None:
+                return data
+            return payload
+        LOGGER.debug("Fetching payload from %s", link)
         results_session = requests.Session()
         results_session.cookies.update(self._session.cookies)
         results_session.headers.update({"Accept": "application/json"})
         results_response = results_session.get(link, timeout=30)
         results_response.raise_for_status()
         return results_response.json()
+
+    def get_session_results(self, session_id: str) -> Dict[str, Any]:
+        """Fetch session results for the provided subsession/session id."""
+        return self._fetch_data("/data/results/get", {"subsession_id": session_id})
+
+    def get_league(self, league_id: str) -> Dict[str, Any]:
+        """Fetch league metadata."""
+        return self._fetch_data("/data/league/get", {"league_id": league_id})
+
+    def get_league_seasons(self, league_id: str) -> Dict[str, Any]:
+        """Fetch available seasons for a league."""
+        return self._fetch_data("/data/league/seasons", {"league_id": league_id})
+
+    def get_league_season_standings(
+        self, league_id: str, season_id: str, standings_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Fetch league season standings; standings_type can specify overall/pro/am/nation."""
+        params: Dict[str, Any] = {"league_id": league_id, "season_id": season_id}
+        if standings_type:
+            params["standings_type"] = standings_type
+        return self._fetch_data("/data/league/season/standings", params)
+
+    def get_league_season_team_standings(self, league_id: str, season_id: str) -> Dict[str, Any]:
+        """Fetch league season team standings."""
+        return self._fetch_data(
+            "/data/league/season/team_standings",
+            {"league_id": league_id, "season_id": season_id},
+        )
+
+    def get_league_season_points(self, league_id: str, season_id: str) -> Dict[str, Any]:
+        """Fetch league season points system."""
+        return self._fetch_data(
+            "/data/league/season/points",
+            {"league_id": league_id, "season_id": season_id},
+        )
+
+    def get_league_season_race_schedule(self, league_id: str, season_id: str) -> Dict[str, Any]:
+        """Fetch league season race calendar."""
+        return self._fetch_data(
+            "/data/league/season/race_schedule",
+            {"league_id": league_id, "season_id": season_id},
+        )
 
 
 def build_base_url() -> str:
