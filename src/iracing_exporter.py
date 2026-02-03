@@ -15,7 +15,7 @@ from csv_export import normalize_results, write_csv
 
 LOGGER = logging.getLogger(__name__)
 
-TOKEN_URL = "https://members-ng.iracing.com/oauth2/token"
+TOKEN_URL = "https://oauth.iracing.com/oauth2/token"
 LEGACY_AUTH_URL = "https://members-ng.iracing.com/auth"
 
 
@@ -38,6 +38,8 @@ def request_access_token(credentials: Dict[str, str]) -> str:
         "username": credentials["IRACING_USERNAME"],
         "password": credentials["IRACING_PASSWORD"],
         "audience": "data-server",
+        "client_id": credentials["IRACING_CLIENT_ID"],
+        "client_secret": credentials["IRACING_CLIENT_SECRET"],
     }
     LOGGER.debug("Requesting OAuth token from %s", TOKEN_URL)
     response = requests.post(
@@ -46,6 +48,12 @@ def request_access_token(credentials: Dict[str, str]) -> str:
         auth=(credentials["IRACING_CLIENT_ID"], credentials["IRACING_CLIENT_SECRET"]),
         timeout=30,
     )
+    if response.status_code >= 400:
+        LOGGER.error(
+            "OAuth token request failed with HTTP %s: %s",
+            response.status_code,
+            response.text,
+        )
     response.raise_for_status()
     token_payload = response.json()
     access_token = token_payload.get("access_token")
