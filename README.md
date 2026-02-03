@@ -31,6 +31,21 @@ To validate the CLI without contacting iRacing:
 python src/iracing_exporter.py --session-id 123456 --output results.csv --dry-run
 ```
 
+## Windows PowerShell
+
+On Windows, you can run the same command via Windows PowerShell:
+
+```powershell
+powershell -Command "python src/iracing_exporter.py --session-id 123456 --output results.csv --dry-run"
+```
+
+## Troubleshooting
+
+If you see a `SyntaxError` that references a line starting with `index` (for example,
+`index 31bd26...`), the Python file likely contains a pasted git diff header. Re-download
+the project archive or open the file and remove the stray diff header lines before
+running the exporter.
+
 ## Notes
 
 * The OAuth password-limited client scope is restricted to `julian.m.colbert@gmail.com`.
