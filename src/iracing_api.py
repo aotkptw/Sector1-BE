@@ -42,6 +42,18 @@ class IRacingAPI:
             if isinstance(data_payload, dict):
                 LOGGER.debug("Response from %s included data inline; skipping link fetch.", endpoint)
                 return data_payload
+            if data_payload in (None, [], ""):
+                LOGGER.warning(
+                    "Response from %s did not include a data link or inline data; returning empty payload.",
+                    endpoint,
+                )
+                return {}
+            if isinstance(data_payload, list):
+                LOGGER.debug(
+                    "Response from %s included data inline as a list; returning under 'data' key.",
+                    endpoint,
+                )
+                return {"data": data_payload}
             if any(key in payload for key in ("standings", "team_standings", "points", "point_system")):
                 LOGGER.debug(
                     "Response from %s included expected data keys inline; skipping link fetch.",
