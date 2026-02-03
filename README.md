@@ -20,6 +20,22 @@ export IRACING_REFRESH_TOKEN="your-refresh-token"
 python src/iracing_exporter.py --session-id 123456 --output results.csv
 ```
 
+To export league data, provide a league id, season id, and dataset:
+
+```bash
+python src/iracing_exporter.py --league-id 98765 --season-id 2024 --league-data team-standings --output league_team_standings.csv
+```
+
+Available league datasets:
+
+* `team-standings`
+* `driver-standings` (overall)
+* `pro-standings`
+* `am-standings`
+* `nation-standings`
+* `points`
+* `calendar` (race calendar with top-three positions)
+
 Additional options:
 
 ```bash
