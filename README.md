@@ -11,6 +11,7 @@ export IRACING_CLIENT_ID="your-client-id"
 export IRACING_CLIENT_SECRET="your-client-secret"
 export IRACING_USERNAME="your-iracing-username"
 export IRACING_PASSWORD="your-iracing-password"
+export IRACING_REFRESH_TOKEN="your-refresh-token"
 ```
 
 ## Usage
@@ -49,3 +50,5 @@ running the exporter.
 ## Notes
 
 * The OAuth password-limited client scope is restricted to `julian.m.colbert@gmail.com`.
+* If `IRACING_REFRESH_TOKEN` is set, the exporter will use the refresh grant before falling back to the password-limited grant.
+* The iRacing OAuth service requires masking of the client secret and user password before submission; the exporter handles this automatically.

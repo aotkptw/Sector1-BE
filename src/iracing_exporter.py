@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import logging
 import os
 import sys
-from typing import Dict
+from typing import Dict, Optional
 
 import requests
 
@@ -19,33 +21,74 @@ TOKEN_URL = "https://oauth.iracing.com/oauth2/token"
 LEGACY_AUTH_URL = "https://members-ng.iracing.com/auth"
 
 
-def load_env_credentials() -> Dict[str, str]:
-    required = [
-        "IRACING_CLIENT_ID",
-        "IRACING_CLIENT_SECRET",
-        "IRACING_USERNAME",
-        "IRACING_PASSWORD",
-    ]
+def load_env_credentials() -> Dict[str, Optional[str]]:
+    required = ["IRACING_CLIENT_ID", "IRACING_CLIENT_SECRET", "IRACING_USERNAME"]
     missing = [key for key in required if not os.getenv(key)]
     if missing:
         raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
-    return {key: os.environ[key] for key in required}
+    return {
+        "IRACING_CLIENT_ID": os.environ["IRACING_CLIENT_ID"],
+        "IRACING_CLIENT_SECRET": os.environ["IRACING_CLIENT_SECRET"],
+        "IRACING_USERNAME": os.environ["IRACING_USERNAME"],
+        "IRACING_PASSWORD": os.getenv("IRACING_PASSWORD"),
+        "IRACING_REFRESH_TOKEN": os.getenv("IRACING_REFRESH_TOKEN"),
+    }
 
 
-def request_access_token(credentials: Dict[str, str]) -> str:
+def mask_secret(secret: str, identifier: str) -> str:
+    normalized_id = identifier.strip().lower()
+    digest = hashlib.sha256(f"{secret}{normalized_id}".encode("utf-8")).digest()
+    return base64.b64encode(digest).decode("utf-8")
+
+
+def request_refresh_token(credentials: Dict[str, Optional[str]]) -> str:
+    refresh_token = credentials.get("IRACING_REFRESH_TOKEN")
+    if not refresh_token:
+        raise RuntimeError("Missing IRACING_REFRESH_TOKEN for refresh grant.")
     payload = {
-        "grant_type": "password",
-        "username": credentials["IRACING_USERNAME"],
-        "password": credentials["IRACING_PASSWORD"],
-        "audience": "data-server",
+        "grant_type": "refresh_token",
         "client_id": credentials["IRACING_CLIENT_ID"],
-        "client_secret": credentials["IRACING_CLIENT_SECRET"],
+        "client_secret": mask_secret(
+            credentials["IRACING_CLIENT_SECRET"], credentials["IRACING_CLIENT_ID"]
+        ),
+        "refresh_token": refresh_token,
+    }
+    LOGGER.debug("Requesting OAuth refresh token from %s", TOKEN_URL)
+    response = requests.post(TOKEN_URL, data=payload, timeout=30)
+    if response.status_code >= 400:
+        LOGGER.error(
+            "OAuth refresh token request failed with HTTP %s: %s",
+            response.status_code,
+            response.text,
+        )
+    response.raise_for_status()
+    token_payload = response.json()
+    access_token = token_payload.get("access_token")
+    if not access_token:
+        raise RuntimeError("OAuth refresh token response did not include an access_token.")
+    new_refresh_token = token_payload.get("refresh_token")
+    if new_refresh_token:
+        LOGGER.info("Received new refresh token; update IRACING_REFRESH_TOKEN for reuse.")
+    return access_token
+
+
+def request_access_token(credentials: Dict[str, Optional[str]]) -> str:
+    if not credentials.get("IRACING_PASSWORD"):
+        raise RuntimeError("Missing IRACING_PASSWORD for password-limited grant.")
+    payload = {
+        "grant_type": "password_limited",
+        "username": credentials["IRACING_USERNAME"],
+        "password": mask_secret(credentials["IRACING_PASSWORD"], credentials["IRACING_USERNAME"]),
+        "client_id": credentials["IRACING_CLIENT_ID"],
+        "client_secret": mask_secret(
+            credentials["IRACING_CLIENT_SECRET"], credentials["IRACING_CLIENT_ID"]
+        ),
+        "scope": "iracing.auth",
     }
     LOGGER.debug("Requesting OAuth token from %s", TOKEN_URL)
     response = requests.post(
         TOKEN_URL,
         data=payload,
-        auth=(credentials["IRACING_CLIENT_ID"], credentials["IRACING_CLIENT_SECRET"]),
         timeout=30,
     )
     if response.status_code >= 400:
@@ -59,6 +102,9 @@ def request_access_token(credentials: Dict[str, str]) -> str:
     access_token = token_payload.get("access_token")
     if not access_token:
         raise RuntimeError("OAuth token response did not include an access_token.")
+    refresh_token = token_payload.get("refresh_token")
+    if refresh_token:
+        LOGGER.info("Received refresh token; set IRACING_REFRESH_TOKEN to reuse it.")
     return access_token
 
 
@@ -99,7 +145,10 @@ def main() -> int:
             return 0
         credentials = load_env_credentials()
         try:
-            access_token = request_access_token(credentials)
+            if credentials.get("IRACING_REFRESH_TOKEN"):
+                access_token = request_refresh_token(credentials)
+            else:
+                access_token = request_access_token(credentials)
             api = build_api(access_token)
         except requests.HTTPError as exc:
             status_code = getattr(exc.response, "status_code", None)
