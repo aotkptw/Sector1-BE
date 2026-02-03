@@ -42,7 +42,22 @@ def _normalize_rows(
                 "points": _pick_value(entry_data, ("points", "championship_points", "value")),
             }
         )
+    _shift_positions_if_zero_based(normalized)
     return normalized
+
+
+def _shift_positions_if_zero_based(rows: List[Mapping[str, Any]]) -> None:
+    positions = [
+        entry.get("position")
+        for entry in rows
+        if isinstance(entry.get("position"), (int, float))
+        and not isinstance(entry.get("position"), bool)
+    ]
+    if positions and min(positions) == 0:
+        for entry in rows:
+            position = entry.get("position")
+            if isinstance(position, (int, float)) and not isinstance(position, bool):
+                entry["position"] = position + 1
 
 
 def render_standings_png(
