@@ -107,10 +107,30 @@ doc = api.get_documentation("car/assets")
 print(doc)
 ```
 
-To download all documentation pages with PowerShell, run:
+To download all documentation pages with PowerShell, run (PowerShell 7+):
 
 ```powershell
 pwsh ./scripts/get-iracing-docs.ps1 -AccessToken $env:IRACING_ACCESS_TOKEN -OutputDir ./iracing-docs
+```
+
+If `pwsh` is not available, use Windows PowerShell 5.1 instead (note the path format).
+The script reads `IRACING_ACCESS_TOKEN` by default, so you can omit `-AccessToken` as
+long as the environment variable is set:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\get-iracing-docs.ps1 -OutputDir .\iracing-docs
+```
+
+If you are using an absolute path on Windows, do not prefix it with `.\`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\julia\Sector1-BE\Sector1-BE-main\scripts\get-iracing-docs.ps1 -OutputDir C:\Users\julia\Sector1-BE\Sector1-BE-main\iracing-docs
+```
+
+If you prefer to pass the token explicitly, provide it as a literal string:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\get-iracing-docs.ps1 -AccessToken "your-access-token" -OutputDir .\iracing-docs
 ```
 
 ## Notes
