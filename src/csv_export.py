@@ -80,6 +80,7 @@ def normalize_results(results_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
             }
         )
 
+    _shift_positions_if_zero_based(normalized)
     return normalized
 
 
@@ -101,6 +102,19 @@ def _coerce_mapping(entry: Any) -> Dict[str, Any]:
     if isinstance(entry, dict):
         return entry
     return {"value": entry}
+
+
+def _is_numeric_position(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _shift_positions_if_zero_based(rows: List[Dict[str, Any]]) -> None:
+    positions = [row.get("position") for row in rows if _is_numeric_position(row.get("position"))]
+    if positions and min(positions) == 0:
+        for row in rows:
+            position = row.get("position")
+            if _is_numeric_position(position):
+                row["position"] = position + 1
 
 
 def normalize_league_calendar(calendar_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -185,6 +199,7 @@ def normalize_league_standings(
                 "details": json.dumps(entry_data, default=str),
             }
         )
+    _shift_positions_if_zero_based(normalized)
     return normalized
 
 
@@ -221,6 +236,7 @@ def normalize_league_team_standings(rows: List[Dict[str, Any]]) -> List[Dict[str
                 "details": json.dumps(entry_data, default=str),
             }
         )
+    _shift_positions_if_zero_based(normalized)
     return normalized
 
 
@@ -263,6 +279,7 @@ def normalize_league_points(points_payload: Dict[str, Any]) -> List[Dict[str, An
                 "details": json.dumps(entry_data, default=str),
             }
         )
+    _shift_positions_if_zero_based(normalized)
     return normalized
 
 
