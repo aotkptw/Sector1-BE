@@ -213,7 +213,7 @@ def main() -> int:
                         team_rows,
                         args.team_standings_image,
                         "Team Standings",
-                        ("team_name", "team", "display_name", "name"),
+                        DEFAULT_LEAGUE_ALL_COLUMNS,
                     )
                 rows.extend(normalize_league_team_standings(team_rows))
 
@@ -228,7 +228,7 @@ def main() -> int:
                         standings_rows,
                         args.driver_standings_image,
                         "Driver Standings",
-                        ("display_name", "driver_name", "name"),
+                        DEFAULT_LEAGUE_ALL_COLUMNS,
                     )
                 rows.extend(normalize_league_standings(standings_rows, "driver-standings", "overall"))
 
@@ -259,7 +259,7 @@ def main() -> int:
                         rows,
                         args.team_standings_image,
                         "Team Standings",
-                        ("team_name", "team", "display_name", "name"),
+                        DEFAULT_COLUMNS,
                     )
                 if not rows:
                     LOGGER.warning(
@@ -299,7 +299,7 @@ def main() -> int:
                         rows,
                         args.driver_standings_image,
                         "Driver Standings",
-                        ("display_name", "driver_name", "name"),
+                        DEFAULT_COLUMNS,
                     )
                 if not rows:
                     LOGGER.warning(
@@ -317,7 +317,7 @@ def main() -> int:
                     rows,
                     args.results_image,
                     f"Race Results ({args.session_id})",
-                    ("driver_name", "display_name", "name"),
+                    DEFAULT_COLUMNS,
                 )
             if not rows:
                 LOGGER.warning("No results found for session %s", args.session_id)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable, List, Mapping, Sequence
+from typing import Any, Iterable, List, Mapping, Sequence, Tuple
 
 
 def _ensure_pillow() -> None:
@@ -28,87 +28,125 @@ def _pick_value(entry: Mapping[str, Any], keys: Sequence[str]) -> Any:
     return None
 
 
-def _normalize_rows(
-    rows: Iterable[Mapping[str, Any]],
-    name_keys: Sequence[str],
-) -> List[Mapping[str, Any]]:
-    normalized = []
-    for entry in rows:
-        entry_data = _coerce_mapping(entry)
-        normalized.append(
-            {
-                "position": _pick_value(entry_data, ("position", "rank", "pos", "place")),
-                "name": _pick_value(entry_data, name_keys),
-                "points": _pick_value(entry_data, ("points", "championship_points", "value")),
-            }
-        )
-    _shift_positions_if_zero_based(normalized)
+def _load_font(size: int) -> "ImageFont.ImageFont":
+    from PIL import ImageFont
+
+    try:
+        return ImageFont.truetype("DejaVuSans.ttf", size=size)
+    except OSError:
+        return ImageFont.load_default()
+
+
+def _format_value(value: Any) -> str:
+    if value is None or value == "":
+        return "—"
+    return str(value)
+
+
+def _normalize_columns(columns: Sequence[str]) -> List[Tuple[str, str]]:
+    normalized: List[Tuple[str, str]] = []
+    for key in columns:
+        label = key.replace("_", " ").title()
+        normalized.append((key, label))
     return normalized
 
 
-def _shift_positions_if_zero_based(rows: List[Mapping[str, Any]]) -> None:
-    positions = [
-        entry.get("position")
-        for entry in rows
-        if isinstance(entry.get("position"), (int, float))
-        and not isinstance(entry.get("position"), bool)
-    ]
-    if positions and min(positions) == 0:
-        for entry in rows:
-            position = entry.get("position")
-            if isinstance(position, (int, float)) and not isinstance(position, bool):
-                entry["position"] = position + 1
+def _text_width(draw: "ImageDraw.ImageDraw", text: str, font: "ImageFont.ImageFont") -> int:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0]
 
 
 def render_standings_png(
     rows: Iterable[Mapping[str, Any]],
     output_path: str,
     title: str,
-    name_keys: Sequence[str],
+    columns: Sequence[str],
 ) -> Path:
     _ensure_pillow()
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
 
-    normalized = _normalize_rows(rows, name_keys)
+    normalized = [_coerce_mapping(entry) for entry in rows]
     if not normalized:
         raise RuntimeError("No standings rows available to render.")
 
-    row_height = 36
-    header_height = 60
-    padding = 24
-    table_width = 900
-    height = header_height + row_height * (len(normalized) + 1) + padding
+    column_defs = _normalize_columns(columns)
+
+    body_font = _load_font(16)
+    header_font = _load_font(17)
+    title_font = _load_font(22)
+
+    padding_x = 24
+    padding_y = 20
+    row_padding_y = 8
+    header_padding_y = 10
+    title_height = 48
+
+    row_height = body_font.size + row_padding_y * 2
+    header_height = header_font.size + header_padding_y * 2
+
+    image = Image.new("RGB", (1, 1), color=(18, 18, 22))
+    draw = ImageDraw.Draw(image)
+
+    column_widths: List[int] = []
+    for key, label in column_defs:
+        width = _text_width(draw, label, header_font)
+        for entry in normalized:
+            value = _format_value(entry.get(key))
+            width = max(width, _text_width(draw, value, body_font))
+        column_widths.append(width + 24)
+
+    table_width = padding_x * 2 + sum(column_widths)
+    height = padding_y + title_height + header_height + row_height * len(normalized) + padding_y
 
     image = Image.new("RGB", (table_width, height), color=(18, 18, 22))
     draw = ImageDraw.Draw(image)
-    font = ImageFont.load_default()
 
-    draw.text((padding, 16), title, fill=(240, 240, 240), font=font)
+    draw.rectangle((0, 0, table_width, title_height + padding_y), fill=(26, 26, 32))
+    draw.text(
+        (padding_x, padding_y // 2),
+        title,
+        fill=(245, 245, 248),
+        font=title_font,
+    )
 
-    header_y = header_height - 10
-    draw.line((padding, header_y, table_width - padding, header_y), fill=(80, 80, 90), width=2)
+    header_y = padding_y + title_height
+    draw.rectangle(
+        (padding_x, header_y, table_width - padding_x, header_y + header_height),
+        fill=(38, 40, 50),
+    )
 
-    columns = [
-        ("Pos", 60),
-        ("Name", 520),
-        ("Pts", 120),
-    ]
-    col_x = padding
-    for label, width in columns:
-        draw.text((col_x, header_height + 4), label, fill=(200, 200, 210), font=font)
+    col_x = padding_x
+    for (key, label), width in zip(column_defs, column_widths):
+        draw.text(
+            (col_x + 12, header_y + header_padding_y),
+            label,
+            fill=(222, 225, 235),
+            font=header_font,
+        )
         col_x += width
 
-    start_y = header_height + row_height
-    for index, entry in enumerate(normalized, start=1):
-        y = start_y + (index - 1) * row_height
-        fill = (245, 245, 245) if index % 2 else (220, 220, 220)
-        position = entry["position"] if entry["position"] is not None else index
-        name = entry["name"] or "—"
-        points = entry["points"] if entry["points"] is not None else "—"
+    start_y = header_y + header_height
+    for index, entry in enumerate(normalized):
+        y = start_y + index * row_height
+        fill = (30, 32, 38) if index % 2 else (24, 26, 32)
+        draw.rectangle((padding_x, y, table_width - padding_x, y + row_height), fill=fill)
 
-        draw.text((padding, y), str(position), fill=fill, font=font)
-        draw.text((padding + 60, y), str(name), fill=fill, font=font)
-        draw.text((padding + 60 + 520, y), str(points), fill=fill, font=font)
+        col_x = padding_x
+        for (key, _), width in zip(column_defs, column_widths):
+            value = _format_value(entry.get(key))
+            draw.text(
+                (col_x + 12, y + row_padding_y),
+                value,
+                fill=(236, 238, 244),
+                font=body_font,
+            )
+            col_x += width
+
+    draw.rectangle(
+        (padding_x, header_y, table_width - padding_x, height - padding_y),
+        outline=(70, 72, 82),
+        width=2,
+    )
 
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
