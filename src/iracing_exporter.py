@@ -197,9 +197,7 @@ def main() -> int:
                 team_rows = team_payload.get("team_standings") or team_payload.get("standings") or []
                 rows.extend(normalize_league_team_standings(team_rows))
 
-                standings_payload = api.get_league_season_standings(
-                    args.league_id, season_id, standings_type="overall"
-                )
+                standings_payload = api.get_league_season_standings(args.league_id, season_id)
                 standings_rows = (
                     standings_payload.get("standings")
                     or standings_payload.get("driver_standings")
@@ -207,28 +205,10 @@ def main() -> int:
                 )
                 rows.extend(normalize_league_standings(standings_rows, "driver-standings", "overall"))
 
-                pro_payload = api.get_league_season_standings(
-                    args.league_id, season_id, standings_type="pro"
-                )
-                pro_rows = pro_payload.get("standings") or pro_payload.get("driver_standings") or []
-                rows.extend(normalize_league_standings(pro_rows, "pro-standings", "pro"))
-
-                am_payload = api.get_league_season_standings(
-                    args.league_id, season_id, standings_type="am"
-                )
-                am_rows = am_payload.get("standings") or am_payload.get("driver_standings") or []
-                rows.extend(normalize_league_standings(am_rows, "am-standings", "am"))
-
-                nation_payload = api.get_league_season_standings(
-                    args.league_id, season_id, standings_type="nation"
-                )
-                nation_rows = (
-                    nation_payload.get("standings")
-                    or nation_payload.get("driver_standings")
-                    or []
-                )
+                rows.extend(normalize_league_standings(standings_rows, "pro-standings", "pro"))
+                rows.extend(normalize_league_standings(standings_rows, "am-standings", "am"))
                 rows.extend(
-                    normalize_league_standings(nation_rows, "nation-standings", "nation")
+                    normalize_league_standings(standings_rows, "nation-standings", "nation")
                 )
 
                 points_payload = api.get_league_season_points(args.league_id, season_id)
@@ -278,15 +258,7 @@ def main() -> int:
                     )
                 columns = DEFAULT_CALENDAR_COLUMNS
             else:
-                standings_type = {
-                    "driver-standings": "overall",
-                    "pro-standings": "pro",
-                    "am-standings": "am",
-                    "nation-standings": "nation",
-                }.get(dataset)
-                league_payload = api.get_league_season_standings(
-                    args.league_id, season_id, standings_type=standings_type
-                )
+                league_payload = api.get_league_season_standings(args.league_id, season_id)
                 rows = league_payload.get("standings") or league_payload.get("driver_standings") or []
                 if not rows:
                     LOGGER.warning(
