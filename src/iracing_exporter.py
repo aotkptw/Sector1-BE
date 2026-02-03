@@ -15,7 +15,7 @@ from csv_export import normalize_results, write_csv
 
 LOGGER = logging.getLogger(__name__)
 
-TOKEN_URL = "https://members-ng.iracing.com/oauth2/token"
+TOKEN_URL = "https://oauth.iracing.com/oauth2/token"
 LEGACY_AUTH_URL = "https://members-ng.iracing.com/auth"
 
 
