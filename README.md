@@ -26,6 +26,26 @@ To export league data, provide a league id, season id, and dataset:
 python src/iracing_exporter.py --league-id 98765 --season-id 2024 --league-data team-standings --output league_team_standings.csv
 ```
 
+To export standings as PNG images, add the image output flags:
+
+```bash
+python src/iracing_exporter.py \
+  --league-id 98765 \
+  --season-id 2024 \
+  --league-data driver-standings \
+  --output league_driver_standings.csv \
+  --driver-standings-image league_driver_standings.png
+```
+
+```bash
+python src/iracing_exporter.py \
+  --league-id 98765 \
+  --season-id 2024 \
+  --league-data team-standings \
+  --output league_team_standings.csv \
+  --team-standings-image league_team_standings.png
+```
+
 Available league datasets:
 
 * `team-standings`
