@@ -90,7 +90,7 @@ function Convert-ToDocPath {
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return $null
     }
-    $match = [regex]::Match($Value, "/data/doc(?:/([^\s\"'<>?#]+))?", "IgnoreCase")
+    $match = [regex]::Match($Value, '/data/doc(?:/([^\s"''<>?#]+))?', 'IgnoreCase')
     if ($match.Success) {
         $path = $match.Groups[1].Value
         return Normalize-DocPath $path
