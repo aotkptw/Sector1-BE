@@ -7,8 +7,107 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$TokenUrl = "https://oauth.iracing.com/oauth2/token"
+$LegacyAuthUrl = "$BaseUrl/auth"
+$WebSession = $null
+
+function Get-RequiredEnvValue {
+    param([string]$Name)
+    $value = [Environment]::GetEnvironmentVariable($Name)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        throw "Missing required environment variable: $Name"
+    }
+    return $value
+}
+
+function Convert-ToMaskedSecret {
+    param(
+        [string]$Secret,
+        [string]$Identifier
+    )
+    $normalizedId = $Identifier.Trim().ToLowerInvariant()
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes("$Secret$normalizedId")
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $sha256.ComputeHash($bytes)
+    } finally {
+        $sha256.Dispose()
+    }
+    return [Convert]::ToBase64String($digest)
+}
+
+function Request-OAuthToken {
+    param(
+        [string]$ClientId,
+        [string]$ClientSecret,
+        [string]$Username,
+        [string]$Password,
+        [string]$RefreshToken
+    )
+    if (-not [string]::IsNullOrWhiteSpace($RefreshToken)) {
+        $payload = @{
+            grant_type = "refresh_token"
+            client_id = $ClientId
+            client_secret = (Convert-ToMaskedSecret $ClientSecret $ClientId)
+            refresh_token = $RefreshToken
+        }
+    } elseif (-not [string]::IsNullOrWhiteSpace($Password)) {
+        $payload = @{
+            grant_type = "password_limited"
+            username = $Username
+            password = (Convert-ToMaskedSecret $Password $Username)
+            client_id = $ClientId
+            client_secret = (Convert-ToMaskedSecret $ClientSecret $ClientId)
+            scope = "iracing.auth"
+        }
+    } else {
+        throw "Missing IRACING_PASSWORD or IRACING_REFRESH_TOKEN for OAuth authentication."
+    }
+
+    return Invoke-RestMethod -Method Post -Uri $TokenUrl -Body $payload -ContentType "application/x-www-form-urlencoded"
+}
+
+function Request-LegacySession {
+    param(
+        [string]$Username,
+        [string]$Password
+    )
+    if ([string]::IsNullOrWhiteSpace($Password)) {
+        throw "Missing IRACING_PASSWORD for legacy authentication."
+    }
+    $payload = @{
+        email = $Username
+        password = $Password
+    } | ConvertTo-Json
+    $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+    Invoke-RestMethod -Method Post -Uri $LegacyAuthUrl -Body $payload -ContentType "application/json" -WebSession $session | Out-Null
+    return $session
+}
+
 if ([string]::IsNullOrWhiteSpace($AccessToken)) {
-    throw "Access token missing. Provide -AccessToken or set IRACING_ACCESS_TOKEN."
+    $clientId = Get-RequiredEnvValue "IRACING_CLIENT_ID"
+    $clientSecret = Get-RequiredEnvValue "IRACING_CLIENT_SECRET"
+    $username = Get-RequiredEnvValue "IRACING_USERNAME"
+    $password = [Environment]::GetEnvironmentVariable("IRACING_PASSWORD")
+    $refreshToken = [Environment]::GetEnvironmentVariable("IRACING_REFRESH_TOKEN")
+
+    try {
+        $tokenResponse = Request-OAuthToken -ClientId $clientId -ClientSecret $clientSecret -Username $username -Password $password -RefreshToken $refreshToken
+        $AccessToken = $tokenResponse.access_token
+        if ([string]::IsNullOrWhiteSpace($AccessToken)) {
+            throw "OAuth token response did not include an access_token."
+        }
+    } catch {
+        $statusCode = $null
+        if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
+        }
+        if ($statusCode -ne 405) {
+            throw
+        }
+        Write-Warning "OAuth token request returned HTTP 405. Falling back to legacy auth endpoint."
+        $WebSession = Request-LegacySession -Username $username -Password $password
+    }
 }
 
 function Normalize-DocPath {
@@ -32,10 +131,18 @@ function Invoke-DocRequest {
     param([string]$DocPath)
     $url = Get-DocUrl $DocPath
     Write-Host "Fetching $url"
-    return Invoke-RestMethod -Method Get -Uri $url -Headers @{
-        Authorization = "Bearer $AccessToken"
-        Accept = "application/json"
+    if (-not [string]::IsNullOrWhiteSpace($AccessToken)) {
+        return Invoke-RestMethod -Method Get -Uri $url -Headers @{
+            Authorization = "Bearer $AccessToken"
+            Accept = "application/json"
+        }
     }
+    if ($null -ne $WebSession) {
+        return Invoke-RestMethod -Method Get -Uri $url -WebSession $WebSession -Headers @{
+            Accept = "application/json"
+        }
+    }
+    throw "No authentication available. Provide -AccessToken or set OAuth environment variables."
 }
 
 function Save-DocJson {
