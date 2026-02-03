@@ -122,33 +122,29 @@ class IRacingAPI:
         """Fetch available seasons for a league."""
         return self._fetch_data("/data/league/seasons", {"league_id": league_id})
 
-    def get_league_season_standings(
-        self, league_id: str, season_id: str, standings_type: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Fetch league season standings; standings_type can specify overall/pro/am/nation."""
+    def get_league_season_standings(self, league_id: str, season_id: str) -> Dict[str, Any]:
+        """Fetch league season standings."""
         params: Dict[str, Any] = {"league_id": league_id, "season_id": season_id}
-        if standings_type:
-            params["standings_type"] = standings_type
-        return self._fetch_data("/data/league/season/standings", params)
+        return self._fetch_data("/data/league/season_standings", params)
 
     def get_league_season_team_standings(self, league_id: str, season_id: str) -> Dict[str, Any]:
         """Fetch league season team standings."""
         return self._fetch_data(
-            "/data/league/season/team_standings",
+            "/data/league/season_standings",
             {"league_id": league_id, "season_id": season_id},
         )
 
     def get_league_season_points(self, league_id: str, season_id: str) -> Dict[str, Any]:
         """Fetch league season points system."""
         return self._fetch_data(
-            "/data/league/season/points",
+            "/data/league/get_points_systems",
             {"league_id": league_id, "season_id": season_id},
         )
 
     def get_league_season_race_schedule(self, league_id: str, season_id: str) -> Dict[str, Any]:
         """Fetch league season race calendar."""
         return self._fetch_data(
-            "/data/league/season/race_schedule",
+            "/data/league/season_sessions",
             {"league_id": league_id, "season_id": season_id},
         )
 

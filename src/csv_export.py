@@ -98,7 +98,12 @@ def write_csv(rows: Iterable[Dict[str, Any]], output_path: str, columns: List[st
 
 
 def normalize_league_calendar(calendar_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
-    races = calendar_payload.get("races") or calendar_payload.get("race_schedule") or []
+    races = (
+        calendar_payload.get("races")
+        or calendar_payload.get("race_schedule")
+        or calendar_payload.get("sessions")
+        or []
+    )
     if not races:
         return []
 
