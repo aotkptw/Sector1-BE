@@ -1,3 +1,5 @@
+#JC TO REWRITE README#
+
 # iRacing Session Exporter
 
 This project exports iRacing session results into a CSV suitable for league administration workflows.
