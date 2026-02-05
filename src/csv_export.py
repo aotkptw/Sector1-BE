@@ -56,6 +56,54 @@ DEFAULT_COLUMNS = [
     "ai",
 ]
 
+CSV_HEADER_LABELS = {
+    "start_time": "Start Time",
+    "track": "Track",
+    "series": "Series",
+    "season_year": "Season Year",
+    "season_quarter": "Season Quarter",
+    "rookie_season": "Rookie Season",
+    "race_week": "Race Week",
+    "strength_of_field": "Strength of Field",
+    "special_event_type": "Special Event Type",
+    "fin_pos": "Fin Pos",
+    "car_id": "Car ID",
+    "car": "Car",
+    "car_class_id": "Car Class ID",
+    "car_class": "Car Class",
+    "team_id": "Team ID",
+    "cust_id": "Cust ID",
+    "name": "Name",
+    "start_pos": "Start Pos",
+    "car_number": "Car #",
+    "out_id": "Out ID",
+    "out": "Out",
+    "interval": "Interval",
+    "laps_led": "Laps Led",
+    "qualify_time": "Qualify Time",
+    "average_lap_time": "Average Lap Time",
+    "fastest_lap_time": "Fastest Lap Time",
+    "fast_lap_number": "Fast Lap#",
+    "laps_complete": "Laps Comp",
+    "incidents": "Inc",
+    "points": "Pts",
+    "club_points": "Club Pts",
+    "division": "Div",
+    "club_id": "Club ID",
+    "club": "Club",
+    "old_irating": "Old iRating",
+    "new_irating": "New iRating",
+    "old_license_level": "Old License Lvl",
+    "old_license_sub_level": "Old License Sub Lvl",
+    "new_license_level": "New License Lvl",
+    "new_license_sub_level": "New License Sub Lvl",
+    "series_name": "Series Name",
+    "max_fuel_fill_percent": "Max Fuel Fill Percent",
+    "weight_penalty_kg": "Weight Penalty KG",
+    "agg_points": "Agg Points",
+    "ai": "AI",
+}
+
 DEFAULT_CALENDAR_COLUMNS = [
     "race_number",
     "race_name",
@@ -145,6 +193,7 @@ def normalize_results(results_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "interval": entry.get("interval")
                 if entry.get("interval") is not None
                 else entry.get("interval_to_leader"),
+                "interval_to_leader": entry.get("interval_to_leader"),
                 "laps_led": entry.get("laps_led"),
                 "qualify_time": entry.get("qualifying_time")
                 if entry.get("qualifying_time") is not None
@@ -197,6 +246,7 @@ def normalize_results(results_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     _shift_positions_if_zero_based(normalized, "fin_pos")
     _shift_positions_if_zero_based(normalized, "start_pos")
+    _normalize_timing_values(normalized)
     return normalized
 
 
@@ -206,10 +256,16 @@ def write_csv(rows: Iterable[Dict[str, Any]], output_path: str, columns: List[st
     columns_to_use = columns or DEFAULT_COLUMNS
 
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns_to_use)
+        csv_headers = [CSV_HEADER_LABELS.get(column, column) for column in columns_to_use]
+        writer = csv.DictWriter(handle, fieldnames=csv_headers)
         writer.writeheader()
         for row in rows:
-            writer.writerow({key: row.get(key) for key in columns_to_use})
+            writer.writerow(
+                {
+                    CSV_HEADER_LABELS.get(key, key): row.get(key)
+                    for key in columns_to_use
+                }
+            )
 
     return path
 
@@ -274,6 +330,74 @@ def _build_session_info(results_payload: Dict[str, Any], race_session: Dict[str,
             ["special_event_type", "special_event_type_name"],
         ),
     }
+
+
+def _normalize_timing_values(rows: List[Dict[str, Any]]) -> None:
+    previous_gap_seconds: float | None = None
+
+    for row in rows:
+        row["average_lap_time"] = _format_lap_time(row.get("average_lap_time"))
+        row["fastest_lap_time"] = _format_lap_time(row.get("fastest_lap_time"))
+
+        interval_source = row.get("interval_to_leader")
+        if interval_source is None:
+            interval_source = row.get("interval")
+
+        gap_seconds = _duration_to_seconds(interval_source)
+        if gap_seconds is None:
+            row["interval"] = row.get("interval")
+            previous_gap_seconds = None
+            continue
+
+        if previous_gap_seconds is None:
+            row["interval"] = ""
+        else:
+            row["interval"] = _format_interval(previous_gap_seconds - gap_seconds)
+
+        previous_gap_seconds = gap_seconds
+
+
+def _duration_to_seconds(value: Any) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+
+    numeric_value: float | None = None
+    if isinstance(value, (int, float)):
+        numeric_value = float(value)
+    elif isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            numeric_value = float(stripped)
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if isinstance(value, int) and abs(numeric_value) >= 1000:
+        return numeric_value / 1000.0
+    if isinstance(value, float) and numeric_value.is_integer() and abs(numeric_value) >= 1000:
+        return numeric_value / 1000.0
+    return numeric_value
+
+
+def _format_lap_time(value: Any) -> Any:
+    seconds = _duration_to_seconds(value)
+    if seconds is None:
+        return value
+
+    total_seconds = abs(seconds)
+    sign = "-" if seconds < 0 else ""
+    minutes = int(total_seconds // 60)
+    remaining_seconds = total_seconds - (minutes * 60)
+    return f"{sign}{minutes}:{remaining_seconds:06.3f}"
+
+
+def _format_interval(delta_seconds: float) -> str:
+    if abs(delta_seconds) >= 60:
+        return _format_lap_time(delta_seconds)
+    return f"{delta_seconds:+.3f}"
 
 
 def _first_present(
