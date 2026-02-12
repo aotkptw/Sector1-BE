@@ -1,4 +1,4 @@
-#JC TO REWRITE README#
+Julian Colbert
 
 # iRacing Session Exporter
 
